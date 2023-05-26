@@ -4,14 +4,6 @@
 name: nightly_run
 
 on:
-  pull_request:
-    types:
-      - opened
-      - synchronize
-    #running nightly pipeline if you're changing it 
-    paths:
-      - ".github/workflows/nightly_run.yml"
-      
   # midnight UTC
   schedule:
     - cron: "0 0 * * *"
@@ -47,16 +39,24 @@ jobs:
     with:
       os: "ubuntu-20.04"
       arch: "X86"
+
+  build_llvm_libraries_on_ubuntu_2204:
+    uses: ./.github/workflows/build_llvm_libraries.yml
+    with:
+      os: "ubuntu-22.04"
+      arch: "X86"
   
   build_wamrc:
     needs:
-      [build_llvm_libraries_on_ubuntu_2004]
+      [build_llvm_libraries_on_ubuntu_2004, build_llvm_libraries_on_ubuntu_2204]
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         include:
           - os: ubuntu-20.04
-            llvm_cache_key: ${{ needs.build_llvm_libraries_on_ubuntu_2004.outputs.cache_key }}  
+            llvm_cache_key: ${{ needs.build_llvm_libraries_on_ubuntu_2004.outputs.cache_key }}
+          - os: ubuntu-22.04
+            llvm_cache_key: ${{ needs.build_llvm_libraries_on_ubuntu_2204.outputs.cache_key }}
     steps:
       - name: checkout
         uses: actions/checkout@v3
@@ -88,7 +88,7 @@ jobs:
 
   build_iwasm:
     needs:
-      [build_llvm_libraries_on_ubuntu_2004]
+      [build_llvm_libraries_on_ubuntu_2004, build_llvm_libraries_on_ubuntu_2204]
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -120,7 +120,7 @@ jobs:
             "-DWAMR_BUILD_TAIL_CALL=1",
             "-DWAMR_DISABLE_HW_BOUND_CHECK=1",
           ]
-        os: [ubuntu-20.04]
+        os: [ubuntu-20.04, ubuntu-22.04]
         platform: [android, linux]
         exclude:
           # uncompatiable feature and platform
@@ -184,10 +184,14 @@ jobs:
             platform: android
           - make_options_run_mode: $MULTI_TIER_JIT_BUILD_OPTIONS
             platform: android
+          # only test andorid on ubuntu latest
+          - os: ubuntu-20.04
+            platform: android
         include:
           - os: ubuntu-20.04
             llvm_cache_key: ${{ needs.build_llvm_libraries_on_ubuntu_2004.outputs.cache_key }}
-
+          - os: ubuntu-22.04
+            llvm_cache_key: ${{ needs.build_llvm_libraries_on_ubuntu_2204.outputs.cache_key }}
     steps:
       - name: checkout
         uses: actions/checkout@v3
@@ -279,12 +283,7 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Install dependencies
-        uses: nick-fields/retry@v2
-        with:
-          timeout_minutes: 10
-          max_attempts: 3
-          command: apt update && apt install -y make g++-4.8 gcc-4.8 wget git
-          on_retry_command: sudo rm -r /var/lib/apt/lists/*
+        run: apt update && apt install -y make g++-4.8 gcc-4.8 wget git
 
       - name: Install cmake
         run: |
@@ -304,6 +303,7 @@ jobs:
       [
         build_iwasm,
         build_llvm_libraries_on_ubuntu_2004,
+        build_llvm_libraries_on_ubuntu_2204,
         build_wamrc,
       ]
     runs-on: ${{ matrix.os }}
@@ -321,7 +321,7 @@ jobs:
             $LLVM_EAGER_JIT_BUILD_OPTIONS,
             $MULTI_TIER_JIT_BUILD_OPTIONS,
           ]
-        os: [ubuntu-20.04]
+        os: [ubuntu-20.04, ubuntu-22.04]
         wasi_sdk_release:
           [
             "https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-20/wasi-sdk-20.0-linux.tar.gz",
@@ -333,6 +333,8 @@ jobs:
         include:
           - os: ubuntu-20.04
             llvm_cache_key: ${{ needs.build_llvm_libraries_on_ubuntu_2004.outputs.cache_key }}
+          - os: ubuntu-22.04
+            llvm_cache_key: ${{ needs.build_llvm_libraries_on_ubuntu_2204.outputs.cache_key }}
         exclude:
           - make_options: $MULTI_TIER_JIT_BUILD_OPTIONS
             sanitizer: asan
@@ -384,7 +386,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-20.04]
+        os: [ubuntu-20.04, ubuntu-22.04]
         wasi_sdk_release:
           [
             "https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-20/wasi-sdk-20.0-linux.tar.gz",
@@ -468,13 +470,14 @@ jobs:
       [
         build_iwasm,
         build_llvm_libraries_on_ubuntu_2004,
+        build_llvm_libraries_on_ubuntu_2204,
         build_wamrc,
       ]
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-20.04]
+        os: [ubuntu-20.04, ubuntu-22.04]
         sanitizer: ["", "ubsan", "asan"]
         running_mode:
           [
@@ -501,7 +504,9 @@ jobs:
           - os: ubuntu-20.04
             llvm_cache_key: ${{ needs.build_llvm_libraries_on_ubuntu_2004.outputs.cache_key }}
             ubuntu_version: "20.04"
-
+          - os: ubuntu-22.04
+            llvm_cache_key: ${{ needs.build_llvm_libraries_on_ubuntu_2204.outputs.cache_key }}
+            ubuntu_version: "22.04"
         exclude:
           # uncompatiable modes and features
           - os: ubuntu-20.04
