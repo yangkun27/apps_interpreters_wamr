@@ -4,7 +4,7 @@
  */
 
 #include "libdyntype_export.h"
-#include "quickjs.h"
+#include "quickjs-wamr.h"
 #include "type.h"
 
 extern JSValue *
